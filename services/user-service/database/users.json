@@ -37,7 +37,7 @@
       "currency": "USD"
     },
     "createdAt": 1758353598108,
-    "updatedAt": "2025-09-20T07:56:51.815Z"
+    "updatedAt": "2025-09-20T20:00:14.527Z"
   },
   {
     "id": "c635fe57-4490-4bfc-8f4d-745c648bf339",
@@ -52,5 +52,47 @@
     },
     "createdAt": 1758354159403,
     "updatedAt": "2025-09-20T07:42:39.404Z"
+  },
+  {
+    "id": "f9788dd4-441b-4a39-8ecb-5bebd6d235c8",
+    "email": "testuser321@example.com",
+    "username": "testuser",
+    "password": "$2a$12$mvjI/bA6GwK7XQVJMy3Q0OI8N/Px94GChwrylQqwzyYZXjwIU7Ydm",
+    "firstName": "Test",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758360039465,
+    "updatedAt": "2025-09-20T09:20:39.466Z"
+  },
+  {
+    "id": "a3d58ab9-1399-4940-9ded-0eff866c1e3f",
+    "email": "testuser333@example.com",
+    "username": "testuser",
+    "password": "$2a$12$0bmnKfONaarCRHoG/V8oruKZVyFsX3pj5ov7n5MR.9EDhVJpt3JqC",
+    "firstName": "Test",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758360097564,
+    "updatedAt": "2025-09-20T09:21:37.564Z"
+  },
+  {
+    "id": "0069d640-07cd-4ce7-8502-3dfd2a10e73a",
+    "email": "testuser4@example.com",
+    "username": "testuser",
+    "password": "$2a$12$NDjyMzFiRYG6Bxwng87MH.jYu9GB.28yNZ8Dmga0UHeOvpJ5UgdsW",
+    "firstName": "Test",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758397445942,
+    "updatedAt": "2025-09-20T19:44:05.943Z"
   }
 ]

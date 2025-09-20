@@ -21,6 +21,17 @@ class APIGateway {
         setTimeout(() => {
             this.startHealthChecks();
         }, 3000); // Aguardar 3 segundos antes de iniciar health checks
+
+        // Registrar serviços no Service Registry
+        const servicesToRegister = [
+            { name: 'user-service', url: 'http://localhost:3001' },
+            { name: 'item-service', url: 'http://localhost:3002' },
+            { name: 'list-service', url: 'http://localhost:3003' }
+        ];
+
+        servicesToRegister.forEach(service => {
+            serviceRegistry.register(service.name, { url: service.url });
+        });
     }
 
     setupMiddleware() {
@@ -41,6 +52,26 @@ class APIGateway {
         // Request logging
         this.app.use((req, res, next) => {
             console.log(`${req.method} ${req.originalUrl} - ${req.ip}`);
+            next();
+        });
+
+        this.app.use((req, res, next) => {
+            const serviceName = req.baseUrl.split('/')[2]; 
+            try {
+                const service = serviceRegistry.discover(serviceName);
+                req.serviceUrl = service.url;
+                next();
+            } catch (error) {
+                res.status(503).json({ error: error.message });
+            }
+        });
+
+        this.app.use((req, res, next) => {
+            const start = Date.now();
+            res.on('finish', () => {
+                const duration = Date.now() - start;
+                console.log(`📝 [${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
+            });
             next();
         });
     }
@@ -112,6 +143,18 @@ class APIGateway {
             this.proxyRequest('item-service', req, res, next);
         });
 
+        // Auth routes - NOVO
+        this.app.use('/api/auth', (req, res, next) => {
+            console.log(`🔗 Roteando para auth-service: ${req.method} ${req.originalUrl}`);
+            this.proxyRequest('auth-service', req, res, next);
+        });
+
+        // List Service routes - NOVO
+        this.app.use('/api/lists', (req, res, next) => {
+            console.log(`🔗 Roteando para list-service: ${req.method} ${req.originalUrl}`);
+            this.proxyRequest('list-service', req, res, next);
+        });
+
         // Endpoints agregados
         this.app.get('/api/dashboard', this.getDashboard.bind(this));
         this.app.get('/api/search', this.globalSearch.bind(this));
@@ -145,19 +188,15 @@ class APIGateway {
 
     // Proxy request to service
     async proxyRequest(serviceName, req, res, next) {
-        try {
-            console.log(`🔄 Proxy request: ${req.method} ${req.originalUrl} -> ${serviceName}`);
-            
-            // Verificar circuit breaker
-            if (this.isCircuitOpen(serviceName)) {
-                console.log(`⚡ Circuit breaker open for ${serviceName}`);
-                return res.status(503).json({
-                    success: false,
-                    message: `Serviço ${serviceName} temporariamente indisponível`,
-                    service: serviceName
-                });
-            }
+        // Verificar circuit breaker
+        if (this.isCircuitOpen(serviceName)) {
+            return res.status(503).json({
+                success: false,
+                message: `Serviço ${serviceName} temporariamente indisponível`
+            });
+        }
 
+        try {
             // Descobrir serviço com debug
             let service;
             try {
@@ -204,6 +243,28 @@ class APIGateway {
                 // Se path vazio, usar /products
                 if (targetPath === '/' || targetPath === '') {
                     targetPath = '/products';
+                }
+            } else if (serviceName === 'auth-service') {
+                // /api/auth/login -> /login
+                // /api/auth/register -> /register
+                targetPath = originalPath.replace('/api/auth', '');
+                if (!targetPath.startsWith('/')) {
+                    targetPath = '/' + targetPath;
+                }
+                // Se path vazio, usar /
+                if (targetPath === '/' || targetPath === '') {
+                    targetPath = '/';
+                }
+            } else if (serviceName === 'list-service') {
+                // /api/lists -> /lists
+                // /api/lists/123 -> /lists/123
+                targetPath = originalPath.replace('/api/lists', '');
+                if (!targetPath.startsWith('/')) {
+                    targetPath = '/' + targetPath;
+                }
+                // Se path vazio, usar /lists
+                if (targetPath === '/' || targetPath === '') {
+                    targetPath = '/lists';
                 }
             }
             
@@ -284,50 +345,37 @@ class APIGateway {
     }
     // Circuit Breaker 
     isCircuitOpen(serviceName) {
-        const breaker = this.circuitBreakers.get(serviceName);
-        if (!breaker) return false;
-
-        const now = Date.now();
-        
-        // Verificar se o circuito deve ser meio-aberto
-        if (breaker.isOpen && (now - breaker.lastFailure) > 30000) { // 30 segundos
-            breaker.isOpen = false;
-            breaker.isHalfOpen = true;
-            console.log(`Circuit breaker half-open for ${serviceName}`);
-            return false;
+        const breaker = this.circuitBreakers.get(serviceName) || { failures: 0, isOpen: false, lastFailure: 0 };
+        if (breaker.isOpen && Date.now() - breaker.lastFailure < 30000) {
+            return true; // Circuito ainda está aberto
         }
-
-        return breaker.isOpen;
+        if (breaker.isOpen) {
+            breaker.isOpen = false; // Reabrir circuito após 30 segundos
+            breaker.failures = 0;
+            this.circuitBreakers.set(serviceName, breaker);
+        }
+        return false;
     }
 
+    // Registrar falha no Circuit Breaker
     recordFailure(serviceName) {
-        let breaker = this.circuitBreakers.get(serviceName) || {
-            failures: 0,
-            isOpen: false,
-            isHalfOpen: false,
-            lastFailure: null
-        };
-
+        const breaker = this.circuitBreakers.get(serviceName) || { failures: 0, isOpen: false };
         breaker.failures++;
         breaker.lastFailure = Date.now();
-
-        // Abrir circuito após 3 falhas
         if (breaker.failures >= 3) {
             breaker.isOpen = true;
-            breaker.isHalfOpen = false;
-            console.log(`Circuit breaker opened for ${serviceName}`);
+            console.log(`Circuit breaker aberto para ${serviceName}`);
         }
-
         this.circuitBreakers.set(serviceName, breaker);
     }
 
+    // Resetar Circuit Breaker
     resetCircuitBreaker(serviceName) {
         const breaker = this.circuitBreakers.get(serviceName);
         if (breaker) {
             breaker.failures = 0;
             breaker.isOpen = false;
-            breaker.isHalfOpen = false;
-            console.log(`Circuit breaker reset for ${serviceName}`);
+            console.log(`Circuit breaker resetado para ${serviceName}`);
         }
     }
 
@@ -472,8 +520,19 @@ class APIGateway {
     // Health checks para serviços registrados
     startHealthChecks() {
         setInterval(async () => {
-            await serviceRegistry.performHealthChecks();
-        }, 30000); // A cada 30 segundos
+            console.log('🔍 Executando health checks automáticos...');
+            const services = serviceRegistry.listServices();
+            for (const [serviceName, service] of Object.entries(services)) {
+                try {
+                    await axios.get(`${service.url}/health`, { timeout: 5000 });
+                    serviceRegistry.updateHealth(serviceName, true);
+                    console.log(`✅ Serviço saudável: ${serviceName}`);
+                } catch (error) {
+                    serviceRegistry.updateHealth(serviceName, false);
+                    console.error(`❌ Serviço com falha: ${serviceName}`);
+                }
+            }
+        }, 30000); // Executar a cada 30 segundos
 
         // Health check inicial
         setTimeout(async () => {

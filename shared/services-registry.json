@@ -1,4 +1,18 @@
 {
+  "item-service": {
+    "url": "http://localhost:3002",
+    "registeredAt": 1758406323631,
+    "lastHealthCheck": 1758406476696,
+    "healthy": true,
+    "pid": 11432
+  },
+  "list-service": {
+    "url": "http://localhost:3002",
+    "registeredAt": 1758406323776,
+    "lastHealthCheck": 1758406476699,
+    "healthy": true,
+    "pid": 11720
+  },
   "user-service": {
     "url": "http://localhost:3001",
     "version": "1.0.0",
@@ -10,16 +24,9 @@
       "/users",
       "/search"
     ],
-    "registeredAt": 1758356208089,
-    "lastHealthCheck": 1758356331055,
+    "registeredAt": 1758406323742,
+    "lastHealthCheck": 1758406476705,
     "healthy": true,
-    "pid": 2876
-  },
-  "item-service": {
-    "url": "http://localhost:3003",
-    "registeredAt": 1758355604980,
-    "lastHealthCheck": 1758356331058,
-    "healthy": false,
-    "pid": 4248
+    "pid": 1668
   }
 }

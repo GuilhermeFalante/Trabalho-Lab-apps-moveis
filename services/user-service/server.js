@@ -257,8 +257,8 @@ class UserService {
 
             const token = jwt.sign(
                 { id: user.id, email: user.email, username: user.username },
-                process.env.JWT_SECRET || 'user-secret', // Mudar para 'user-secret'
-                { expiresIn: '1h' }
+                process.env.JWT_SECRET || 'user-secret',
+                { expiresIn: '24h' }
             );
 
             res.status(200).json({
@@ -290,10 +290,10 @@ class UserService {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'user-secret');
             const user = await this.usersDb.findById(decoded.id);
 
-            if (!user || user.status !== 'active') {
+            if (!user) {
                 return res.status(401).json({
                     success: false,
-                    message: 'Usuário não encontrado ou inativo'
+                    message: 'Usuário não encontrado'
                 });
             }
 
