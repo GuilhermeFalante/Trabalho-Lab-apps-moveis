@@ -1,0 +1,56 @@
+[
+  {
+    "id": "7d584650-6614-465e-b3b9-a5fccd995924",
+    "email": "admin@microservices.com",
+    "username": "admin",
+    "password": "$2a$12$kx1GiV2rWIXvvxWbHOWBQ.k6LQYtzmQrHx5CDXmVEn.gZN1WSst8e",
+    "firstName": "Administrador",
+    "lastName": "Sistema",
+    "role": "admin",
+    "status": "active",
+    "createdAt": "2025-09-20T07:30:57.210Z",
+    "updatedAt": "2025-09-20T07:30:57.210Z"
+  },
+  {
+    "id": "74f77265-9d45-47ce-b0af-f700b74c1157",
+    "email": "testuser@example.com",
+    "username": "testuser",
+    "password": "$2a$12$zokyIzhURSDsvLYSpBvpZuPjrsWdsB2s3qkmCpF31eLjngkpE5pUu",
+    "firstName": "Test",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758353528837,
+    "updatedAt": "2025-09-20T07:32:08.838Z"
+  },
+  {
+    "id": "265a21c5-957e-4b2f-9b42-db16962b8830",
+    "email": "testuser2@example.com",
+    "username": "testuser",
+    "password": "$2a$12$0tlP.iTcgVyYFgHV.zh.2u9WFP7lZZMaO5qZ2soX8L68Z4dCbPlQO",
+    "firstName": "Updated",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758353598108,
+    "updatedAt": "2025-09-20T07:56:51.815Z"
+  },
+  {
+    "id": "c635fe57-4490-4bfc-8f4d-745c648bf339",
+    "email": "testuser3@example.com",
+    "username": "testuser",
+    "password": "$2a$12$T1JcR3bBBrs2uWF92kSoRuXghk8Xu9ZtWfQK/K40bALbPBxw/S/I6",
+    "firstName": "Test",
+    "lastName": "User",
+    "preferences": {
+      "defaultStore": "Store A",
+      "currency": "USD"
+    },
+    "createdAt": 1758354159403,
+    "updatedAt": "2025-09-20T07:42:39.404Z"
+  }
+]

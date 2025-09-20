@@ -17,7 +17,7 @@ class UserService {
         this.port = process.env.PORT || 3001;
         this.serviceName = 'user-service';
         this.serviceUrl = `http://localhost:${this.port}`;
-        
+
         this.setupDatabase();
         this.setupMiddleware();
         this.setupRoutes();
@@ -36,10 +36,10 @@ class UserService {
         setTimeout(async () => {
             try {
                 const existingUsers = await this.usersDb.find();
-                
+
                 if (existingUsers.length === 0) {
                     const adminPassword = await bcrypt.hash('admin123', 12);
-                    
+
                     await this.usersDb.create({
                         id: uuidv4(),
                         email: 'admin@microservices.com',
@@ -109,7 +109,7 @@ class UserService {
                 database: 'JSON-NoSQL',
                 endpoints: [
                     'POST /auth/register',
-                    'POST /auth/login', 
+                    'POST /auth/login',
                     'POST /auth/validate',
                     'GET /users',
                     'GET /users/:id',
@@ -128,7 +128,7 @@ class UserService {
         this.app.get('/users', this.authMiddleware.bind(this), this.getUsers.bind(this));
         this.app.get('/users/:id', this.authMiddleware.bind(this), this.getUser.bind(this));
         this.app.put('/users/:id', this.authMiddleware.bind(this), this.updateUser.bind(this));
-        
+
         // Search route
         this.app.get('/search', this.authMiddleware.bind(this), this.searchUsers.bind(this));
     }
@@ -155,7 +155,7 @@ class UserService {
     // Auth middleware
     authMiddleware(req, res, next) {
         const authHeader = req.header('Authorization');
-        
+
         if (!authHeader?.startsWith('Bearer ')) {
             return res.status(401).json({
                 success: false,
@@ -164,7 +164,7 @@ class UserService {
         }
 
         const token = authHeader.replace('Bearer ', '');
-        
+
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'user-secret');
             req.user = decoded;
@@ -180,152 +180,97 @@ class UserService {
     // Register user
     async register(req, res) {
         try {
-            const { email, username, password, firstName, lastName } = req.body;
+            const { email, username, password, firstName, lastName, preferences } = req.body;
 
-            // Validações básicas
-            if (!email || !username || !password || !firstName || !lastName) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Todos os campos são obrigatórios'
-                });
+            // Validate required fields
+            if (!email || !username || !password) {
+                return res.status(400).json({ message: 'Email, username, and password are required.' });
             }
 
-            // Verificar se usuário já existe
-            const existingEmail = await this.usersDb.findOne({ email: email.toLowerCase() });
-            const existingUsername = await this.usersDb.findOne({ username: username.toLowerCase() });
-
-            if (existingEmail) {
-                return res.status(409).json({
-                    success: false,
-                    message: 'Email já está em uso'
-                });
+            // Check if email is unique
+            const isUnique = await this.isEmailUnique(email);
+            if (!isUnique) {
+                return res.status(400).json({ message: 'Email is already in use.' });
             }
 
-            if (existingUsername) {
-                return res.status(409).json({
-                    success: false,
-                    message: 'Username já está em uso'
-                });
-            }
-
-            // Hash password
+            // Hash the password
             const hashedPassword = await bcrypt.hash(password, 12);
 
-            // Criar usuário com schema NoSQL flexível
-            const newUser = await this.usersDb.create({
+            // Create user object
+            const newUser = {
                 id: uuidv4(),
-                email: email.toLowerCase(),
-                username: username.toLowerCase(),
+                email,
+                username,
                 password: hashedPassword,
                 firstName,
                 lastName,
-                role: 'user',
-                status: 'active',
-                profile: {
-                    bio: null,
-                    avatar: null,
-                    preferences: {
-                        theme: 'light',
-                        language: 'pt-BR'
-                    }
-                },
-                metadata: {
-                    registrationDate: new Date().toISOString(),
-                    lastLogin: null,
-                    loginCount: 0
-                }
-            });
+                preferences: preferences || {},
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
 
-            const { password: _, ...userWithoutPassword } = newUser;
+            // Validate schema
+            this.validateUserSchema(newUser);
 
-            const token = jwt.sign(
-                { 
-                    id: newUser.id, 
-                    email: newUser.email, 
-                    username: newUser.username,
-                    role: newUser.role 
-                },
-                process.env.JWT_SECRET || 'user-secret',
-                { expiresIn: '24h' }
-            );
+            // Save user to database
+            await this.usersDb.create(newUser);
 
-            res.status(201).json({
-                success: true,
-                message: 'Usuário criado com sucesso',
-                data: { user: userWithoutPassword, token }
-            });
+            res.status(201).json({ message: 'User registered successfully.', userId: newUser.id });
         } catch (error) {
-            console.error('Erro no registro:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Erro interno do servidor'
-            });
+            console.error('Error in register:', error);
+            res.status(500).json({ message: 'Internal server error.' });
         }
     }
 
     // Login user
     async login(req, res) {
         try {
-            const { identifier, password } = req.body;
+            const { email, username, password } = req.body;
 
-            if (!identifier || !password) {
+            // Validate required fields
+            if ((!email && !username) || !password) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Identificador e senha obrigatórios'
+                    message: 'É necessário fornecer um identificador (email ou username) e a senha.'
                 });
             }
 
-            const user = await this.usersDb.findOne({
-                $or: [
-                    { email: identifier.toLowerCase() },
-                    { username: identifier.toLowerCase() }
-                ]
-            });
+            // Find user by email or username
+            const users = await this.usersDb.find();
+            const user = users.find(u => (email && u.email === email) || (username && u.username === username));
 
-            if (!user || !await bcrypt.compare(password, user.password)) {
+            if (!user) {
                 return res.status(401).json({
                     success: false,
-                    message: 'Credenciais inválidas'
+                    message: 'Usuário não encontrado.'
                 });
             }
 
-            // Verificar se usuário está ativo
-            if (user.status !== 'active') {
-                return res.status(403).json({
+            // Compare passwords
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({
                     success: false,
-                    message: 'Conta desativada'
+                    message: 'Senha inválida.'
                 });
             }
 
-            // Atualizar dados de login (demonstrando flexibilidade NoSQL)
-            await this.usersDb.update(user.id, {
-                'metadata.lastLogin': new Date().toISOString(),
-                'metadata.loginCount': (user.metadata?.loginCount || 0) + 1
-            });
-
-            const { password: _, ...userWithoutPassword } = user;
-            
             const token = jwt.sign(
-                { 
-                    id: user.id, 
-                    email: user.email, 
-                    username: user.username,
-                    role: user.role 
-                },
-                process.env.JWT_SECRET || 'user-secret',
-                { expiresIn: '24h' }
+                { id: user.id, email: user.email, username: user.username },
+                process.env.JWT_SECRET || 'user-secret', // Mudar para 'user-secret'
+                { expiresIn: '1h' }
             );
 
-            res.json({
+            res.status(200).json({
                 success: true,
-                message: 'Login realizado com sucesso',
-                data: { user: userWithoutPassword, token }
+                message: 'Login bem-sucedido.',
+                token
             });
         } catch (error) {
-            console.error('Erro no login:', error);
+            console.error('Error in login:', error);
             res.status(500).json({
                 success: false,
-                message: 'Erro interno do servidor'
+                message: 'Erro interno do servidor.'
             });
         }
     }
@@ -474,7 +419,7 @@ class UserService {
             if (firstName) updates.firstName = firstName;
             if (lastName) updates.lastName = lastName;
             if (email) updates.email = email.toLowerCase();
-            
+
             // Atualizar campos aninhados (demonstrando NoSQL)
             if (bio !== undefined) updates['profile.bio'] = bio;
             if (theme) updates['profile.preferences.theme'] = theme;
@@ -511,7 +456,7 @@ class UserService {
 
             // Busca full-text NoSQL
             const users = await this.usersDb.search(q, ['firstName', 'lastName', 'username', 'email']);
-            
+
             // Filtrar apenas usuários ativos e remover passwords
             const safeUsers = users
                 .filter(user => user.status === 'active')
@@ -563,11 +508,39 @@ class UserService {
             console.log(`Health: ${this.serviceUrl}/health`);
             console.log(`Database: JSON-NoSQL`);
             console.log('=====================================');
-            
+
             // Register with service registry
             this.registerWithRegistry();
             this.startHealthReporting();
         });
+    }
+
+    validateUserSchema(user) {
+        const schema = {
+            id: 'string',
+            email: 'string',
+            username: 'string',
+            password: 'string',
+            firstName: 'string',
+            lastName: 'string',
+            preferences: {
+                defaultStore: 'string',
+                currency: 'string'
+            },
+            createdAt: 'number',
+            updatedAt: 'number'
+        };
+
+        for (const key in schema) {
+            if (typeof user[key] !== schema[key] && !(key in user)) {
+                throw new Error(`Invalid or missing field: ${key}`);
+            }
+        }
+    }
+
+    async isEmailUnique(email) {
+        const users = await this.usersDb.find();
+        return !users.some(user => user.email === email);
     }
 }
 

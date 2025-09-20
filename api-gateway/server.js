@@ -69,7 +69,7 @@ class APIGateway {
                 database_approach: 'Database per Service (JSON-NoSQL)',
                 endpoints: {
                     users: '/api/users/*',
-                    products: '/api/products/*',
+                    item: '/api/item/*',
                     health: '/health',
                     registry: '/registry',
                     dashboard: '/api/dashboard',
@@ -107,9 +107,9 @@ class APIGateway {
         });
 
         // Product Service routes - CORRIGIDO  
-        this.app.use('/api/products', (req, res, next) => {
-            console.log(`🔗 Roteando para product-service: ${req.method} ${req.originalUrl}`);
-            this.proxyRequest('product-service', req, res, next);
+        this.app.use('/api/item', (req, res, next) => {
+            console.log(`🔗 Roteando para item-service: ${req.method} ${req.originalUrl}`);
+            this.proxyRequest('item-service', req, res, next);
         });
 
         // Endpoints agregados
