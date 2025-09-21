@@ -1,5 +1,8 @@
 # Trabalho-Lab-apps-moveis
 
+## Link do vídeo de apresentação
+https://www.youtube.com/watch?v=OTTwQk0NWYc
+
 ## Descrição
 
 Este projeto é uma aplicação de exemplo baseada em microsserviços, desenvolvida para fins acadêmicos na disciplina de Laboratório de Aplicações Móveis. O sistema é composto por um API Gateway e três microsserviços principais: `item-service`, `list-service` e `user-service`. Cada serviço possui seu próprio banco de dados em formato JSON e comunicação via HTTP.

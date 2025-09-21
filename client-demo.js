@@ -7,7 +7,7 @@ async function main() {
 		// 1. Registro de usuário
 		console.log('--- Registro de usuário ---');
 		const registerRes = await axios.post(`${API_URL}/api/auth/register`, {
-			email: 'demo.3213212@email.com',
+			email: 'demo@email.com',
 			username: 'demouser',
 			password: 'senha123',
 			firstName: 'Demo',
@@ -18,18 +18,18 @@ async function main() {
 		// 2. Login
 		console.log('\n--- Login ---');
 		const loginRes = await axios.post(`${API_URL}/api/auth/login`, {
-			email: 'demo.3213212@email.com',
+			email: 'demo@email.com',
 			password: 'senha123'
 		});
 		const token = loginRes.data.token;
 		console.log('Token JWT:', token);
 
 		// 3. Busca de itens
-		console.log('\n--- Busca de itens ("arroz") ---');
-		const searchRes = await axios.get(`${API_URL}/api/items`, { params: { name: 'arroz' } });
+		console.log('\n--- Busca de itens---');
+		const searchRes = await axios.get(`${API_URL}/api/items`);
 		const items = searchRes.data;
 		console.log('Itens encontrados:', items.map(i => ({ id: i.id, name: i.name })));
-		if (!items.length) throw new Error('Nenhum item "arroz" encontrado.');
+		if (!items.length) throw new Error('Nenhum item encontrado.');
 		const itemId = items[0].id;
 
 		// 4. Criação de lista
@@ -74,3 +74,4 @@ async function main() {
 }
 
 main();
+	
