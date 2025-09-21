@@ -4,29 +4,27 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const axios = require('axios');
 
-// Importar service registry
 const serviceRegistry = require('../shared/serviceRegistry');
 
 class APIGateway {
     constructor() {
         this.app = express();
         this.port = process.env.PORT || 3000;
-        
+
         // Circuit breaker simples
         this.circuitBreakers = new Map();
-        
+
         this.setupMiddleware();
         this.setupRoutes();
         this.setupErrorHandling();
         setTimeout(() => {
             this.startHealthChecks();
-        }, 3000); // Aguardar 3 segundos antes de iniciar health checks
+        }, 3000); 
 
-        // Registrar serviços no Service Registry
         const servicesToRegister = [
             { name: 'user-service', url: 'http://localhost:3001' },
-            { name: 'item-service', url: 'http://localhost:3002' },
-            { name: 'list-service', url: 'http://localhost:3003' }
+            { name: 'item-service', url: 'http://localhost:3003' },
+            { name: 'list-service', url: 'http://localhost:3002' }  
         ];
 
         servicesToRegister.forEach(service => {
@@ -53,17 +51,6 @@ class APIGateway {
         this.app.use((req, res, next) => {
             console.log(`${req.method} ${req.originalUrl} - ${req.ip}`);
             next();
-        });
-
-        this.app.use((req, res, next) => {
-            const serviceName = req.baseUrl.split('/')[2]; 
-            try {
-                const service = serviceRegistry.discover(serviceName);
-                req.serviceUrl = service.url;
-                next();
-            } catch (error) {
-                res.status(503).json({ error: error.message });
-            }
         });
 
         this.app.use((req, res, next) => {
@@ -99,8 +86,10 @@ class APIGateway {
                 architecture: 'Microservices with NoSQL databases',
                 database_approach: 'Database per Service (JSON-NoSQL)',
                 endpoints: {
+                    auth: '/api/auth/*',
                     users: '/api/users/*',
-                    item: '/api/item/*',
+                    items: '/api/items/*',
+                    lists: '/api/lists/*',
                     health: '/health',
                     registry: '/registry',
                     dashboard: '/api/dashboard',
@@ -131,25 +120,25 @@ class APIGateway {
             });
         });
 
-        // User Service routes - CORRIGIDO
+        // Auth routes - user-service
+        this.app.use('/api/auth', (req, res, next) => {
+            console.log(`🔗 Roteando para user-service: ${req.method} ${req.originalUrl}`);
+            this.proxyRequest('user-service', req, res, next);
+        });
+
+        // User Service routes
         this.app.use('/api/users', (req, res, next) => {
             console.log(`🔗 Roteando para user-service: ${req.method} ${req.originalUrl}`);
             this.proxyRequest('user-service', req, res, next);
         });
 
-        // Product Service routes - CORRIGIDO  
-        this.app.use('/api/item', (req, res, next) => {
+        // Item Service routes
+        this.app.use('/api/items', (req, res, next) => {
             console.log(`🔗 Roteando para item-service: ${req.method} ${req.originalUrl}`);
             this.proxyRequest('item-service', req, res, next);
         });
 
-        // Auth routes - NOVO
-        this.app.use('/api/auth', (req, res, next) => {
-            console.log(`🔗 Roteando para auth-service: ${req.method} ${req.originalUrl}`);
-            this.proxyRequest('auth-service', req, res, next);
-        });
-
-        // List Service routes - NOVO
+        // List Service routes
         this.app.use('/api/lists', (req, res, next) => {
             console.log(`🔗 Roteando para list-service: ${req.method} ${req.originalUrl}`);
             this.proxyRequest('list-service', req, res, next);
@@ -159,6 +148,7 @@ class APIGateway {
         this.app.get('/api/dashboard', this.getDashboard.bind(this));
         this.app.get('/api/search', this.globalSearch.bind(this));
     }
+
     setupErrorHandling() {
         // 404 handler
         this.app.use('*', (req, res) => {
@@ -167,8 +157,10 @@ class APIGateway {
                 message: 'Endpoint não encontrado',
                 service: 'api-gateway',
                 availableEndpoints: {
+                    auth: '/api/auth',
                     users: '/api/users',
-                    products: '/api/products',
+                    items: '/api/items',
+                    lists: '/api/lists',
                     dashboard: '/api/dashboard',
                     search: '/api/search'
                 }
@@ -176,19 +168,12 @@ class APIGateway {
         });
 
         // Error handler
-        this.app.use((error, req, res, next) => {
-            console.error('Gateway Error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Erro interno do gateway',
-                service: 'api-gateway'
-            });
-        });
+
     }
 
     // Proxy request to service
     async proxyRequest(serviceName, req, res, next) {
-        // Verificar circuit breaker
+
         if (this.isCircuitOpen(serviceName)) {
             return res.status(503).json({
                 success: false,
@@ -197,17 +182,14 @@ class APIGateway {
         }
 
         try {
-            // Descobrir serviço com debug
             let service;
             try {
                 service = serviceRegistry.discover(serviceName);
             } catch (error) {
                 console.error(`❌ Erro na descoberta do serviço ${serviceName}:`, error.message);
-                
-                // Debug: listar serviços disponíveis
                 const availableServices = serviceRegistry.listServices();
                 console.log(`📋 Serviços disponíveis:`, Object.keys(availableServices));
-                
+
                 return res.status(503).json({
                     success: false,
                     message: `Serviço ${serviceName} não encontrado`,
@@ -215,72 +197,49 @@ class APIGateway {
                     availableServices: Object.keys(availableServices)
                 });
             }
-            
-            // Construir URL de destino corrigida
+
             const originalPath = req.originalUrl;
-            let targetPath = '';
-            
-            // Extrair o path correto baseado no serviço
+            let targetPath = originalPath;
+
+            // Mapeamento de rotas específicas
             if (serviceName === 'user-service') {
-                // /api/users/auth/login -> /auth/login
-                // /api/users -> /users
-                // /api/users/123 -> /users/123
-                targetPath = originalPath.replace('/api/users', '');
-                if (!targetPath.startsWith('/')) {
-                    targetPath = '/' + targetPath;
+                // /api/auth -> /auth, /api/users -> /users
+                if (originalPath.startsWith('/api/auth')) {
+                    targetPath = originalPath.replace('/api/auth', '/auth');
+                } else if (originalPath.startsWith('/api/users')) {
+                    targetPath = originalPath.replace('/api/users', '/users');
                 }
-                // Se path vazio, usar /users
-                if (targetPath === '/' || targetPath === '') {
-                    targetPath = '/users';
-                }
-            } else if (serviceName === 'product-service') {
-                // /api/products -> /products
-                // /api/products/123 -> /products/123
-                targetPath = originalPath.replace('/api/products', '');
-                if (!targetPath.startsWith('/')) {
-                    targetPath = '/' + targetPath;
-                }
-                // Se path vazio, usar /products
-                if (targetPath === '/' || targetPath === '') {
-                    targetPath = '/products';
-                }
-            } else if (serviceName === 'auth-service') {
-                // /api/auth/login -> /login
-                // /api/auth/register -> /register
-                targetPath = originalPath.replace('/api/auth', '');
-                if (!targetPath.startsWith('/')) {
-                    targetPath = '/' + targetPath;
-                }
-                // Se path vazio, usar /
-                if (targetPath === '/' || targetPath === '') {
-                    targetPath = '/';
-                }
+            } else if (serviceName === 'item-service') {
+                // /api/items -> /items
+                targetPath = originalPath.replace('/api/items', '/items');
             } else if (serviceName === 'list-service') {
                 // /api/lists -> /lists
-                // /api/lists/123 -> /lists/123
-                targetPath = originalPath.replace('/api/lists', '');
-                if (!targetPath.startsWith('/')) {
-                    targetPath = '/' + targetPath;
-                }
-                // Se path vazio, usar /lists
-                if (targetPath === '/' || targetPath === '') {
-                    targetPath = '/lists';
-                }
+                targetPath = originalPath.replace('/api/lists', '/lists');
             }
-            
+
+            if (!targetPath.startsWith('/')) {
+                targetPath = '/' + targetPath;
+            }
+
+            if (targetPath === '/' || targetPath === '') {
+                if (serviceName === 'user-service') targetPath = '/users';
+                else if (serviceName === 'item-service') targetPath = '/items';
+                else if (serviceName === 'list-service') targetPath = '/lists';
+            }
+
             const targetUrl = `${service.url}${targetPath}`;
-            
+
             console.log(`🎯 Target URL: ${targetUrl}`);
-            
+
             // Configurar requisição
             const config = {
                 method: req.method,
                 url: targetUrl,
                 headers: { ...req.headers },
                 timeout: 10000,
-                family: 4,  // Força IPv4
+                family: 4,
                 validateStatus: function (status) {
-                    return status < 500; // Aceitar todos os status < 500
+                    return status < 500;
                 }
             };
 
@@ -302,26 +261,26 @@ class APIGateway {
 
             // Fazer requisição
             const response = await axios(config);
-            
+
             // Resetar circuit breaker em caso de sucesso
             this.resetCircuitBreaker(serviceName);
-            
+
             console.log(`📥 Resposta recebida: ${response.status}`);
-            
+
             // Retornar resposta
             res.status(response.status).json(response.data);
 
         } catch (error) {
             // Registrar falha
             this.recordFailure(serviceName);
-            
+
             console.error(`❌ Proxy error for ${serviceName}:`, {
                 message: error.message,
                 code: error.code,
                 url: error.config?.url,
                 status: error.response?.status
             });
-            
+
             if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
                 res.status(503).json({
                     success: false,
@@ -343,21 +302,21 @@ class APIGateway {
             }
         }
     }
+
     // Circuit Breaker 
     isCircuitOpen(serviceName) {
         const breaker = this.circuitBreakers.get(serviceName) || { failures: 0, isOpen: false, lastFailure: 0 };
-        if (breaker.isOpen && Date.now() - breaker.lastFailure < 30000) {
-            return true; // Circuito ainda está aberto
+        if (breaker.isOpen && Date.now() - breaker.lastFailure < 300000) {
+            return true;
         }
         if (breaker.isOpen) {
-            breaker.isOpen = false; // Reabrir circuito após 30 segundos
+            breaker.isOpen = false;
             breaker.failures = 0;
             this.circuitBreakers.set(serviceName, breaker);
         }
         return false;
     }
 
-    // Registrar falha no Circuit Breaker
     recordFailure(serviceName) {
         const breaker = this.circuitBreakers.get(serviceName) || { failures: 0, isOpen: false };
         breaker.failures++;
@@ -369,7 +328,6 @@ class APIGateway {
         this.circuitBreakers.set(serviceName, breaker);
     }
 
-    // Resetar Circuit Breaker
     resetCircuitBreaker(serviceName) {
         const breaker = this.circuitBreakers.get(serviceName);
         if (breaker) {
@@ -379,62 +337,135 @@ class APIGateway {
         }
     }
 
-    // Dashboard agregado
     async getDashboard(req, res) {
-        try {
-            const authHeader = req.header('Authorization');
-            
-            if (!authHeader) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Token de autenticação obrigatório'
-                });
-            }
-
-            // Buscar dados de múltiplos serviços
-            const [userResponse, productsResponse, categoriesResponse] = await Promise.allSettled([
-                this.callService('user-service', '/users', 'GET', authHeader, { limit: 5 }),
-                this.callService('product-service', '/products', 'GET', null, { limit: 5 }),
-                this.callService('product-service', '/categories', 'GET', null, {})
-            ]);
-
-            const dashboard = {
-                timestamp: new Date().toISOString(),
-                architecture: 'Microservices with NoSQL',
-                database_approach: 'Database per Service',
-                services_status: serviceRegistry.listServices(),
-                data: {
-                    users: {
-                        available: userResponse.status === 'fulfilled',
-                        data: userResponse.status === 'fulfilled' ? userResponse.value.data : null,
-                        error: userResponse.status === 'rejected' ? userResponse.reason.message : null
-                    },
-                    products: {
-                        available: productsResponse.status === 'fulfilled',
-                        data: productsResponse.status === 'fulfilled' ? productsResponse.value.data : null,
-                        error: productsResponse.status === 'rejected' ? productsResponse.reason.message : null
-                    },
-                    categories: {
-                        available: categoriesResponse.status === 'fulfilled',
-                        data: categoriesResponse.status === 'fulfilled' ? categoriesResponse.value.data : null,
-                        error: categoriesResponse.status === 'rejected' ? categoriesResponse.reason.message : null
-                    }
-                }
-            };
-
-            res.json({
-                success: true,
-                data: dashboard
-            });
-
-        } catch (error) {
-            console.error('Erro no dashboard:', error);
-            res.status(500).json({
+    try {
+        const authHeader = req.header('Authorization');
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({
                 success: false,
-                message: 'Erro ao agregar dados do dashboard'
+                message: 'Token de autenticação obrigatório'
             });
         }
+
+        const token = authHeader.replace('Bearer ', '');
+        
+        // 1. Buscar informações do usuário
+        let userInfo = null;
+        try {
+            const userService = serviceRegistry.discover('user-service');
+            const userRes = await axios.post(`${userService.url}/auth/validate`, 
+                { token },
+                { timeout: 5000 }
+            );
+            userInfo = userRes.data.data?.user;
+        } catch (error) {
+            console.warn('Erro ao buscar informações do usuário:', error.message);
+        }
+
+        // 2. Buscar listas do usuário
+        let userLists = [];
+        let listStats = {
+            total: 0,
+            active: 0,
+            completed: 0,
+            archived: 0
+        };
+
+        try {
+            const listService = serviceRegistry.discover('list-service');
+            const listsRes = await axios.get(`${listService.url}/lists`, {
+                headers: { Authorization: `Bearer ${token}` },
+                timeout: 5000
+            });
+            userLists = listsRes.data;
+            
+            // Calcular estatísticas das listas
+            listStats.total = userLists.length;
+            userLists.forEach(list => {
+                if (list.status === 'active') listStats.active++;
+                if (list.status === 'completed') listStats.completed++;
+                if (list.status === 'archived') listStats.archived++;
+            });
+        } catch (error) {
+            console.warn('Erro ao buscar listas:', error.message);
+        }
+
+        // 3. Calcular estatísticas de itens
+        let totalItems = 0;
+        let totalPurchased = 0;
+        let estimatedTotal = 0;
+
+        try {
+            userLists.forEach(list => {
+                totalItems += list.summary?.totalItems || 0;
+                totalPurchased += list.summary?.purchasedItems || 0;
+                estimatedTotal += list.summary?.estimatedTotal || 0;
+            });
+        } catch (error) {
+            console.warn('Erro ao calcular estatísticas de itens:', error.message);
+        }
+
+        // 4. Buscar categorias populares
+        let popularCategories = [];
+        try {
+            const itemService = serviceRegistry.discover('item-service');
+            const categoriesRes = await axios.get(`${itemService.url}/categories`, {
+                timeout: 5000
+            });
+            popularCategories = categoriesRes.data.slice(0, 5);
+        } catch (error) {
+            console.warn('Erro ao buscar categorias:', error.message);
+        }
+
+        // 5. Preparar resposta do dashboard
+        const dashboardData = {
+            user: userInfo ? {
+                id: userInfo.id,
+                username: userInfo.username,
+                email: userInfo.email,
+                firstName: userInfo.firstName,
+                lastName: userInfo.lastName
+            } : null,
+            statistics: {
+                lists: listStats,
+                items: {
+                    total: totalItems,
+                    purchased: totalPurchased,
+                    remaining: totalItems - totalPurchased,
+                    completionRate: totalItems > 0 ? Math.round((totalPurchased / totalItems) * 100) : 0
+                },
+                financial: {
+                    estimatedTotal: Math.round(estimatedTotal * 100) / 100,
+                    averagePerItem: totalItems > 0 ? Math.round((estimatedTotal / totalItems) * 100) / 100 : 0
+                }
+            },
+            recentActivity: userLists.slice(0, 3).map(list => ({
+                id: list.id,
+                name: list.name,
+                status: list.status,
+                itemsCount: list.summary?.totalItems || 0,
+                updatedAt: list.updatedAt
+            })),
+            popularCategories,
+            lastUpdated: new Date().toISOString()
+        };
+
+        res.json({
+            success: true,
+            message: 'Dashboard data retrieved successfully',
+            data: dashboardData
+        });
+
+    } catch (error) {
+        console.error('Erro no dashboard:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro interno ao gerar dashboard',
+            error: error.message
+        });
     }
+}
 
     // Busca global entre serviços
     async globalSearch(req, res) {
@@ -448,38 +479,19 @@ class APIGateway {
                 });
             }
 
-            // Buscar em produtos e usuários (se autenticado)
-            const authHeader = req.header('Authorization');
-            const searches = [
-                this.callService('product-service', '/search', 'GET', null, { q })
-            ];
-
-            // Adicionar busca de usuários se autenticado
-            if (authHeader) {
-                searches.push(
-                    this.callService('user-service', '/search', 'GET', authHeader, { q, limit: 5 })
-                );
-            }
-
-            const [productResults, userResults] = await Promise.allSettled(searches);
+            // Buscar em itens
+            const [itemResults] = await Promise.allSettled([
+                this.callService('item-service', '/search', 'GET', null, { q })
+            ]);
 
             const results = {
                 query: q,
-                products: {
-                    available: productResults.status === 'fulfilled',
-                    results: productResults.status === 'fulfilled' ? productResults.value.data.results : [],
-                    error: productResults.status === 'rejected' ? productResults.reason.message : null
+                items: {
+                    available: itemResults.status === 'fulfilled',
+                    results: itemResults.status === 'fulfilled' ? itemResults.value : [],
+                    error: itemResults.status === 'rejected' ? itemResults.reason.message : null
                 }
             };
-
-            // Adicionar resultados de usuários se a busca foi feita
-            if (userResults) {
-                results.users = {
-                    available: userResults.status === 'fulfilled',
-                    results: userResults.status === 'fulfilled' ? userResults.value.data.results : [],
-                    error: userResults.status === 'rejected' ? userResults.reason.message : null
-                };
-            }
 
             res.json({
                 success: true,
@@ -498,7 +510,7 @@ class APIGateway {
     // Helper para chamar serviços
     async callService(serviceName, path, method = 'GET', authHeader = null, params = {}) {
         const service = serviceRegistry.discover(serviceName);
-        
+
         const config = {
             method,
             url: `${service.url}${path}`,
@@ -532,11 +544,19 @@ class APIGateway {
                     console.error(`❌ Serviço com falha: ${serviceName}`);
                 }
             }
-        }, 30000); // Executar a cada 30 segundos
+        }, 30000);
 
         // Health check inicial
         setTimeout(async () => {
-            await serviceRegistry.performHealthChecks();
+            const services = serviceRegistry.listServices();
+            for (const [serviceName, service] of Object.entries(services)) {
+                try {
+                    await axios.get(`${service.url}/health`, { timeout: 5000 });
+                    serviceRegistry.updateHealth(serviceName, true);
+                } catch (error) {
+                    serviceRegistry.updateHealth(serviceName, false);
+                }
+            }
         }, 5000);
     }
 
@@ -554,7 +574,8 @@ class APIGateway {
             console.log('   POST /api/auth/register');
             console.log('   POST /api/auth/login');
             console.log('   GET  /api/users');
-            console.log('   GET  /api/products');
+            console.log('   GET  /api/items');
+            console.log('   GET  /api/lists');
             console.log('   GET  /api/search?q=termo');
             console.log('   GET  /api/dashboard');
             console.log('=====================================');

@@ -1,0 +1,6 @@
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjYyZWExNmM3LTQ5NDYtNDliMi04ZDFmLTdhNTVmNTQyMTkzMSIsImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsInVzZXJuYW1lIjoidXNlcjEyMyIsImlhdCI6MTc1ODQxMDgyOSwiZXhwIjoxNzU4NDk3MjI5fQ.KE2iqGVJgs2G97qtMPel-gVk8mDCatJ89s4VHE9mOKg",
+  "user": {
+    "email": "demo@example.com"
+  }
+}

@@ -39,8 +39,8 @@ app.get('/items', async (req, res) => {
   if (category) {
     items = items.filter(item => item.category && item.category.toLowerCase() === category.toLowerCase());
   }
-  if (name) {
-    items = items.filter(item => item.name && item.name.toLowerCase().includes(name.toLowerCase()));
+  if (typeof name === 'string' && name.trim() !== '') {
+    items = items.filter(item => typeof item.name === 'string' && item.name.toLowerCase().includes(name.toLowerCase()));
   }
 
   res.json(items);
@@ -94,14 +94,29 @@ app.get('/categories', async (req, res) => {
 });
 
 app.get('/search', async (req, res) => {
-  const { q } = req.query;
-  if (!q) {
-    return res.status(400).json({ message: 'Search term is required' });
+  const { q, limit, sort } = req.query;
+  let items = await readItems();
+
+  let results = items;
+  if (q) {
+    results = results.filter(item => item.name && item.name.toLowerCase().includes(q.toLowerCase()));
   }
 
-  const items = await readItems();
-  const results = items.filter(item => item.name.toLowerCase().includes(q.toLowerCase()));
-  res.json(results);
+  // Ordenação por data de criação (mais recentes primeiro)
+  if (sort === 'newest') {
+    results = results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  // Limite de resultados
+  let limitedResults = results;
+  if (limit) {
+    const lim = parseInt(limit, 10);
+    if (!isNaN(lim)) {
+      limitedResults = results.slice(0, lim);
+    }
+  }
+
+  res.json({ results: limitedResults, total: results.length });
 });
 
 app.get('/health', (req, res) => {

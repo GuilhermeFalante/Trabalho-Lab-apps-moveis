@@ -227,5 +227,17 @@
     "active": true,
     "id": "b395f905-46ef-499a-a302-465caa3a0250",
     "createdAt": "2025-09-20T08:35:17.350Z"
+  },
+  {
+    "name": "Produto Exemplo",
+    "category": "Alimentos",
+    "brand": "MarcaExemplo",
+    "unit": "kg",
+    "averagePrice": 10.5,
+    "barcode": "789000600001",
+    "description": "Descrição do produto",
+    "active": true,
+    "id": "1b602a1c-589e-4e9c-8e8d-6a5306b03c74",
+    "createdAt": "2025-09-21T08:33:24.854Z"
   }
 ]

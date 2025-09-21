@@ -5,28 +5,24 @@ const path = require('path');
 const JsonDatabase = require('../../shared/JsonDatabase');
 const fs = require('fs');
 const axios = require('axios');
-const jwt = require('jsonwebtoken'); // Adicionar esta linha
+const jwt = require('jsonwebtoken'); 
 
-// Configuração do servidor
 const PORT = 3002;
 const dbDirectory = path.join(__dirname, 'database');
 
-// Garantir que a pasta do banco exista
 fs.mkdirSync(dbDirectory, { recursive: true });
 
-// Inicializar banco de dados para listas
 const listDb = new JsonDatabase(dbDirectory, 'lists');
 
 const app = express();
 app.use(express.json());
 
-// Esquema para uma lista (baseado no schema fornecido)
 const listSchema = {
   id: '',
   userId: '',
   name: '',
   description: '',
-  status: 'active', // active|completed|archived
+  status: 'active',
   items: [],
   summary: {
     totalItems: 0,
@@ -37,7 +33,6 @@ const listSchema = {
   updatedAt: ''
 };
 
-// Middleware para extrair e validar userId do token JWT
 async function validateUserId(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -48,7 +43,6 @@ async function validateUserId(req, res, next) {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // Extrair userId do token JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'user-secret');
     const userId = decoded.id;
 
@@ -56,7 +50,6 @@ async function validateUserId(req, res, next) {
       return res.status(401).json({ error: 'Token inválido: userId não encontrado' });
     }
 
-    // Verificar se o userId do token corresponde ao userId da requisição
     const requestUserId = req.query.userId || req.body.userId;
     
     if (requestUserId && requestUserId !== userId) {
@@ -80,7 +73,6 @@ async function validateUserId(req, res, next) {
   }
 }
 
-// Middleware para verificar se o usuário tem acesso à lista
 async function checkListOwnership(req, res, next) {
   try {
     const { id } = req.params;
@@ -104,7 +96,6 @@ async function checkListOwnership(req, res, next) {
   }
 }
 
-// Função para buscar informações do item no Item Service
 async function getItemInfo(itemId) {
   try {
     const itemService = serviceRegistry.discover('item-service');
@@ -116,7 +107,6 @@ async function getItemInfo(itemId) {
   }
 }
 
-// Função para calcular o resumo da lista
 function calculateListSummary(items) {
   const totalItems = items.length;
   const purchasedItems = items.filter(item => item.purchased).length;
@@ -127,7 +117,6 @@ function calculateListSummary(items) {
   return { totalItems, purchasedItems, estimatedTotal };
 }
 
-// Função para atualizar o resumo de uma lista
 async function updateListSummary(listId) {
   try {
     const list = await listDb.findById(listId);
@@ -143,7 +132,6 @@ async function updateListSummary(listId) {
   }
 }
 
-// POST /lists - Criar nova lista
 app.post('/lists', validateUserId, async (req, res) => {
   try {
     const { name, description, status = 'active' } = req.body;
@@ -178,13 +166,11 @@ app.post('/lists', validateUserId, async (req, res) => {
   }
 });
 
-// GET /lists - Listar listas do usuário
 app.get('/lists', validateUserId, async (req, res) => {
   try {
     const { status } = req.query;
     const userId = req.userId;
 
-    // Construir filtro
     const filter = { userId };
     if (status) {
       const validStatuses = ['active', 'completed', 'archived'];
@@ -202,12 +188,10 @@ app.get('/lists', validateUserId, async (req, res) => {
   }
 });
 
-// GET /lists/:id - Buscar lista específica
 app.get('/lists/:id', validateUserId, checkListOwnership, async (req, res) => {
   res.status(200).json(req.list);
 });
 
-// PUT /lists/:id - Atualizar lista (nome, descrição, status)
 app.put('/lists/:id', validateUserId, checkListOwnership, async (req, res) => {
   try {
     const { name, description, status } = req.body;
@@ -260,9 +244,9 @@ app.post('/lists/:id/items', validateUserId, checkListOwnership, async (req, res
     }
 
     const newItem = {
-      id: uuidv4(), // ID único para o item na lista
-      itemId: itemInfo.id, // ID do item no catálogo
-      itemName: itemInfo.name, // cache do nome
+      id: uuidv4(), 
+      itemId: itemInfo.id, 
+      itemName: itemInfo.name, 
       quantity,
       unit: unit || itemInfo.unit || 'un',
       estimatedPrice: itemInfo.averagePrice || 0,
@@ -303,7 +287,6 @@ app.put('/lists/:id/items/:itemId', validateUserId, checkListOwnership, async (r
       return res.status(404).json({ error: 'Item não encontrado na lista' });
     }
 
-    // Atualizar campos permitidos
     if (quantity !== undefined) list.items[itemIndex].quantity = quantity;
     if (unit !== undefined) list.items[itemIndex].unit = unit;
     if (estimatedPrice !== undefined) list.items[itemIndex].estimatedPrice = estimatedPrice;
@@ -315,7 +298,6 @@ app.put('/lists/:id/items/:itemId', validateUserId, checkListOwnership, async (r
       updatedAt: new Date().toISOString()
     });
 
-    // Atualizar resumo da lista
     await updateListSummary(req.params.id);
 
     res.status(200).json(updatedList);
@@ -352,7 +334,7 @@ app.delete('/lists/:id/items/:itemId', validateUserId, checkListOwnership, async
   }
 });
 
-// GET /lists/:id/summary - Resumo da lista (total estimado)
+// GET /lists/:id/summary - Resumo da lista
 app.get('/lists/:id/summary', validateUserId, checkListOwnership, async (req, res) => {
   try {
     const summary = calculateListSummary(req.list.items);
@@ -363,7 +345,6 @@ app.get('/lists/:id/summary', validateUserId, checkListOwnership, async (req, re
   }
 });
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -376,7 +357,6 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`List service running on port ${PORT}`);
 
-  // Registrar o serviço no serviceRegistry
   serviceRegistry.register('list-service', {
     url: `http://localhost:${PORT}`
   });

@@ -32,7 +32,6 @@ class UserService {
     }
 
     async seedInitialData() {
-        // Aguardar inicialização e criar usuário admin se não existir
         setTimeout(async () => {
             try {
                 const existingUsers = await this.usersDb.find();
@@ -312,13 +311,12 @@ class UserService {
         }
     }
 
-    // Get users (com paginação)
+    // Get users 
     async getUsers(req, res) {
         try {
             const { page = 1, limit = 10, role, status } = req.query;
             const skip = (page - 1) * parseInt(limit);
 
-            // Filtros NoSQL flexíveis
             const filter = {};
             if (role) filter.role = role;
             if (status) filter.status = status;
@@ -329,7 +327,6 @@ class UserService {
                 sort: { createdAt: -1 }
             });
 
-            // Remove passwords
             const safeUsers = users.map(user => {
                 const { password, ...safeUser } = user;
                 return safeUser;
@@ -369,7 +366,6 @@ class UserService {
                 });
             }
 
-            // Verificar permissão (usuário só vê próprio perfil ou admin vê tudo)
             if (req.user.id !== id && req.user.role !== 'admin') {
                 return res.status(403).json({
                     success: false,
@@ -392,13 +388,12 @@ class UserService {
         }
     }
 
-    // Update user (demonstrando flexibilidade NoSQL)
+    // Update user 
     async updateUser(req, res) {
         try {
             const { id } = req.params;
             const { firstName, lastName, email, bio, theme, language } = req.body;
 
-            // Verificar permissão
             if (req.user.id !== id && req.user.role !== 'admin') {
                 return res.status(403).json({
                     success: false,
@@ -414,13 +409,11 @@ class UserService {
                 });
             }
 
-            // Updates flexíveis com schema NoSQL
             const updates = {};
             if (firstName) updates.firstName = firstName;
             if (lastName) updates.lastName = lastName;
             if (email) updates.email = email.toLowerCase();
 
-            // Atualizar campos aninhados (demonstrando NoSQL)
             if (bio !== undefined) updates['profile.bio'] = bio;
             if (theme) updates['profile.preferences.theme'] = theme;
             if (language) updates['profile.preferences.language'] = language;
@@ -441,8 +434,6 @@ class UserService {
             });
         }
     }
-
-    // Search users (demonstrando busca NoSQL)
     async searchUsers(req, res) {
         try {
             const { q, limit = 10 } = req.query;
@@ -454,10 +445,8 @@ class UserService {
                 });
             }
 
-            // Busca full-text NoSQL
             const users = await this.usersDb.search(q, ['firstName', 'lastName', 'username', 'email']);
 
-            // Filtrar apenas usuários ativos e remover passwords
             const safeUsers = users
                 .filter(user => user.status === 'active')
                 .slice(0, parseInt(limit))
@@ -483,7 +472,6 @@ class UserService {
         }
     }
 
-    // Register with service registry
     registerWithRegistry() {
         serviceRegistry.register(this.serviceName, {
             url: this.serviceUrl,
@@ -493,7 +481,6 @@ class UserService {
         });
     }
 
-    // Start health check reporting
     startHealthReporting() {
         setInterval(() => {
             serviceRegistry.updateHealth(this.serviceName, true);
@@ -509,7 +496,6 @@ class UserService {
             console.log(`Database: JSON-NoSQL`);
             console.log('=====================================');
 
-            // Register with service registry
             this.registerWithRegistry();
             this.startHealthReporting();
         });

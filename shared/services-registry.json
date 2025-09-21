@@ -1,17 +1,10 @@
 {
-  "item-service": {
-    "url": "http://localhost:3002",
-    "registeredAt": 1758406323631,
-    "lastHealthCheck": 1758406476696,
+  "auth-service": {
+    "url": "http://localhost:3000",
+    "registeredAt": 1758407711039,
+    "lastHealthCheck": 1758443620201,
     "healthy": true,
-    "pid": 11432
-  },
-  "list-service": {
-    "url": "http://localhost:3002",
-    "registeredAt": 1758406323776,
-    "lastHealthCheck": 1758406476699,
-    "healthy": true,
-    "pid": 11720
+    "pid": 18128
   },
   "user-service": {
     "url": "http://localhost:3001",
@@ -24,9 +17,23 @@
       "/users",
       "/search"
     ],
-    "registeredAt": 1758406323742,
-    "lastHealthCheck": 1758406476705,
+    "registeredAt": 1758443527252,
+    "lastHealthCheck": 1758443647282,
     "healthy": true,
-    "pid": 1668
+    "pid": 19520
+  },
+  "list-service": {
+    "url": "http://localhost:3002",
+    "registeredAt": 1758443527369,
+    "lastHealthCheck": 1758443620209,
+    "healthy": true,
+    "pid": 11568
+  },
+  "item-service": {
+    "url": "http://localhost:3003",
+    "registeredAt": 1758443527166,
+    "lastHealthCheck": 1758443620213,
+    "healthy": true,
+    "pid": 21320
   }
 }
