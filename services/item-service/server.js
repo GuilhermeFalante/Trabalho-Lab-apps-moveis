@@ -25,7 +25,6 @@ async function readItems() {
 
 async function writeItems(items) {
   try {
-    // Limpar o banco atual e escrever todos os itens
     await db.writeAll(items);
   } catch (err) {
     console.error('Erro ao escrever items no JsonDatabase:', err.message);
@@ -102,7 +101,7 @@ app.get('/search', async (req, res) => {
     results = results.filter(item => item.name && item.name.toLowerCase().includes(q.toLowerCase()));
   }
 
-  // Ordenação por data de criação (mais recentes primeiro)
+  // Ordenação por data de criação 
   if (sort === 'newest') {
     results = results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }

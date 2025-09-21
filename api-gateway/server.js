@@ -19,12 +19,12 @@ class APIGateway {
         this.setupErrorHandling();
         setTimeout(() => {
             this.startHealthChecks();
-        }, 3000); 
+        }, 3000);
 
         const servicesToRegister = [
             { name: 'user-service', url: 'http://localhost:3001' },
             { name: 'item-service', url: 'http://localhost:3003' },
-            { name: 'list-service', url: 'http://localhost:3002' }  
+            { name: 'list-service', url: 'http://localhost:3002' }
         ];
 
         servicesToRegister.forEach(service => {
@@ -243,26 +243,21 @@ class APIGateway {
                 }
             };
 
-            // Adicionar body para requisições POST/PUT/PATCH
             if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
                 config.data = req.body;
             }
 
-            // Adicionar query parameters
             if (Object.keys(req.query).length > 0) {
                 config.params = req.query;
             }
 
-            // Remover headers problemáticos
             delete config.headers.host;
             delete config.headers['content-length'];
 
             console.log(`📤 Enviando ${req.method} para ${targetUrl}`);
 
-            // Fazer requisição
             const response = await axios(config);
 
-            // Resetar circuit breaker em caso de sucesso
             this.resetCircuitBreaker(serviceName);
 
             console.log(`📥 Resposta recebida: ${response.status}`);
@@ -338,136 +333,129 @@ class APIGateway {
     }
 
     async getDashboard(req, res) {
-    try {
-        const authHeader = req.header('Authorization');
-        
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({
-                success: false,
-                message: 'Token de autenticação obrigatório'
-            });
-        }
-
-        const token = authHeader.replace('Bearer ', '');
-        
-        // 1. Buscar informações do usuário
-        let userInfo = null;
         try {
-            const userService = serviceRegistry.discover('user-service');
-            const userRes = await axios.post(`${userService.url}/auth/validate`, 
-                { token },
-                { timeout: 5000 }
-            );
-            userInfo = userRes.data.data?.user;
-        } catch (error) {
-            console.warn('Erro ao buscar informações do usuário:', error.message);
-        }
+            const authHeader = req.header('Authorization');
 
-        // 2. Buscar listas do usuário
-        let userLists = [];
-        let listStats = {
-            total: 0,
-            active: 0,
-            completed: 0,
-            archived: 0
-        };
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Token de autenticação obrigatório'
+                });
+            }
 
-        try {
-            const listService = serviceRegistry.discover('list-service');
-            const listsRes = await axios.get(`${listService.url}/lists`, {
-                headers: { Authorization: `Bearer ${token}` },
-                timeout: 5000
-            });
-            userLists = listsRes.data;
-            
-            // Calcular estatísticas das listas
-            listStats.total = userLists.length;
-            userLists.forEach(list => {
-                if (list.status === 'active') listStats.active++;
-                if (list.status === 'completed') listStats.completed++;
-                if (list.status === 'archived') listStats.archived++;
-            });
-        } catch (error) {
-            console.warn('Erro ao buscar listas:', error.message);
-        }
+            const token = authHeader.replace('Bearer ', '');
 
-        // 3. Calcular estatísticas de itens
-        let totalItems = 0;
-        let totalPurchased = 0;
-        let estimatedTotal = 0;
+            let userInfo = null;
+            try {
+                const userService = serviceRegistry.discover('user-service');
+                const userRes = await axios.post(`${userService.url}/auth/validate`,
+                    { token },
+                    { timeout: 5000 }
+                );
+                userInfo = userRes.data.data?.user;
+            } catch (error) {
+                console.warn('Erro ao buscar informações do usuário:', error.message);
+            }
 
-        try {
-            userLists.forEach(list => {
-                totalItems += list.summary?.totalItems || 0;
-                totalPurchased += list.summary?.purchasedItems || 0;
-                estimatedTotal += list.summary?.estimatedTotal || 0;
-            });
-        } catch (error) {
-            console.warn('Erro ao calcular estatísticas de itens:', error.message);
-        }
+            let userLists = [];
+            let listStats = {
+                total: 0,
+                active: 0,
+                completed: 0,
+                archived: 0
+            };
 
-        // 4. Buscar categorias populares
-        let popularCategories = [];
-        try {
-            const itemService = serviceRegistry.discover('item-service');
-            const categoriesRes = await axios.get(`${itemService.url}/categories`, {
-                timeout: 5000
-            });
-            popularCategories = categoriesRes.data.slice(0, 5);
-        } catch (error) {
-            console.warn('Erro ao buscar categorias:', error.message);
-        }
+            try {
+                const listService = serviceRegistry.discover('list-service');
+                const listsRes = await axios.get(`${listService.url}/lists`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    timeout: 5000
+                });
+                userLists = listsRes.data;
 
-        // 5. Preparar resposta do dashboard
-        const dashboardData = {
-            user: userInfo ? {
-                id: userInfo.id,
-                username: userInfo.username,
-                email: userInfo.email,
-                firstName: userInfo.firstName,
-                lastName: userInfo.lastName
-            } : null,
-            statistics: {
-                lists: listStats,
-                items: {
-                    total: totalItems,
-                    purchased: totalPurchased,
-                    remaining: totalItems - totalPurchased,
-                    completionRate: totalItems > 0 ? Math.round((totalPurchased / totalItems) * 100) : 0
+                listStats.total = userLists.length;
+                userLists.forEach(list => {
+                    if (list.status === 'active') listStats.active++;
+                    if (list.status === 'completed') listStats.completed++;
+                    if (list.status === 'archived') listStats.archived++;
+                });
+            } catch (error) {
+                console.warn('Erro ao buscar listas:', error.message);
+            }
+
+            let totalItems = 0;
+            let totalPurchased = 0;
+            let estimatedTotal = 0;
+
+            try {
+                userLists.forEach(list => {
+                    totalItems += list.summary?.totalItems || 0;
+                    totalPurchased += list.summary?.purchasedItems || 0;
+                    estimatedTotal += list.summary?.estimatedTotal || 0;
+                });
+            } catch (error) {
+                console.warn('Erro ao calcular estatísticas de itens:', error.message);
+            }
+
+            let popularCategories = [];
+            try {
+                const itemService = serviceRegistry.discover('item-service');
+                const categoriesRes = await axios.get(`${itemService.url}/categories`, {
+                    timeout: 5000
+                });
+                popularCategories = categoriesRes.data.slice(0, 5);
+            } catch (error) {
+                console.warn('Erro ao buscar categorias:', error.message);
+            }
+
+            const dashboardData = {
+                user: userInfo ? {
+                    id: userInfo.id,
+                    username: userInfo.username,
+                    email: userInfo.email,
+                    firstName: userInfo.firstName,
+                    lastName: userInfo.lastName
+                } : null,
+                statistics: {
+                    lists: listStats,
+                    items: {
+                        total: totalItems,
+                        purchased: totalPurchased,
+                        remaining: totalItems - totalPurchased,
+                        completionRate: totalItems > 0 ? Math.round((totalPurchased / totalItems) * 100) : 0
+                    },
+                    financial: {
+                        estimatedTotal: Math.round(estimatedTotal * 100) / 100,
+                        averagePerItem: totalItems > 0 ? Math.round((estimatedTotal / totalItems) * 100) / 100 : 0
+                    }
                 },
-                financial: {
-                    estimatedTotal: Math.round(estimatedTotal * 100) / 100,
-                    averagePerItem: totalItems > 0 ? Math.round((estimatedTotal / totalItems) * 100) / 100 : 0
-                }
-            },
-            recentActivity: userLists.slice(0, 3).map(list => ({
-                id: list.id,
-                name: list.name,
-                status: list.status,
-                itemsCount: list.summary?.totalItems || 0,
-                updatedAt: list.updatedAt
-            })),
-            popularCategories,
-            lastUpdated: new Date().toISOString()
-        };
+                recentActivity: userLists.slice(0, 3).map(list => ({
+                    id: list.id,
+                    name: list.name,
+                    status: list.status,
+                    itemsCount: list.summary?.totalItems || 0,
+                    updatedAt: list.updatedAt
+                })),
+                popularCategories,
+                lastUpdated: new Date().toISOString()
+            };
 
-        res.json({
-            success: true,
-            message: 'Dashboard data retrieved successfully',
-            data: dashboardData
-        });
+            res.json({
+                success: true,
+                message: 'Dashboard data retrieved successfully',
+                data: dashboardData
+            });
 
-    } catch (error) {
-        console.error('Erro no dashboard:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Erro interno ao gerar dashboard',
-            error: error.message
-        });
+        } catch (error) {
+            console.error('Erro no dashboard:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Erro interno ao gerar dashboard',
+                error: error.message
+            });
+        }
     }
-}
 
-    // Busca global entre serviços
     async globalSearch(req, res) {
         try {
             const { q } = req.query;
@@ -479,7 +467,6 @@ class APIGateway {
                 });
             }
 
-            // Buscar em itens
             const [itemResults] = await Promise.allSettled([
                 this.callService('item-service', '/search', 'GET', null, { q })
             ]);

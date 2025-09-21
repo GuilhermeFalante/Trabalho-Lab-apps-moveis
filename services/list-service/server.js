@@ -258,13 +258,11 @@ app.post('/lists/:id/items', validateUserId, checkListOwnership, async (req, res
     const list = req.list;
     list.items.push(newItem);
     
-    // Atualizar lista com novo item
     const updatedList = await listDb.update(req.params.id, {
       items: list.items,
       updatedAt: new Date().toISOString()
     });
 
-    // Atualizar resumo da lista
     await updateListSummary(req.params.id);
 
     res.status(201).json(updatedList);

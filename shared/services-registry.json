@@ -2,7 +2,7 @@
   "auth-service": {
     "url": "http://localhost:3000",
     "registeredAt": 1758407711039,
-    "lastHealthCheck": 1758443620201,
+    "lastHealthCheck": 1758443680219,
     "healthy": true,
     "pid": 18128
   },
@@ -18,21 +18,21 @@
       "/search"
     ],
     "registeredAt": 1758443527252,
-    "lastHealthCheck": 1758443647282,
+    "lastHealthCheck": 1758443680224,
     "healthy": true,
     "pid": 19520
   },
   "list-service": {
     "url": "http://localhost:3002",
     "registeredAt": 1758443527369,
-    "lastHealthCheck": 1758443620209,
+    "lastHealthCheck": 1758443680227,
     "healthy": true,
     "pid": 11568
   },
   "item-service": {
     "url": "http://localhost:3003",
     "registeredAt": 1758443527166,
-    "lastHealthCheck": 1758443620213,
+    "lastHealthCheck": 1758443680230,
     "healthy": true,
     "pid": 21320
   }
